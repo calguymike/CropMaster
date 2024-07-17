@@ -1,3 +1,3 @@
 import streamlit as st
 
-st.write("This is the home page!")
+st.title("This is the home page!")
