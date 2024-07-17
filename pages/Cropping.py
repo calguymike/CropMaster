@@ -19,7 +19,7 @@ st.title("Add New Crop to a Field")
 
 # Fetch distinct farms
 farms = fields_collection.distinct("Farm")
-selected_farm = st.selectbox("Select Farm", farms)
+selected_farm = st.radio("Select Farm", farms)
 
 if selected_farm:
     # Fetch fields for the selected farm
