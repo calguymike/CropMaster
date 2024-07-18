@@ -106,11 +106,11 @@ with tab1:
         with col1:
             crop_name = st.selectbox("Crop Name", crop_names)
             quantity = st.text_input("Quantity", "")
-            drill_date = st.text_input("Drill Date", "")
+            drill_date = st.date_input("Drill Date")
 
         # Column 2
         with col2:
-            origin = st.text_input("Origin", "")
+            origin = st.radio("Seed Source", ["Bought", "Home Saved"], horizontal=True)
             dressing = st.text_input("Dressing", "")
             variety = st.text_input("Variety", "")
 
@@ -141,5 +141,11 @@ with tab2:
 
 with tab3:
     st.title("Settings")
+
+    if st.button("Delete all crops from all fields"):
+        # Update all documents to remove the Cropping field
+        result = fields_collection.update_many({}, {"$unset": {"Cropping": ""}})
+
+        st.success(f"Deleted {result.modified_count} documents!")
 
 client.close()
