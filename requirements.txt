@@ -3,3 +3,5 @@ pandas
 plotly
 certifi
 pymongo
+bson
+streamlit_authenticator
