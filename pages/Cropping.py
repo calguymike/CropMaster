@@ -7,7 +7,11 @@ import streamlit_authenticator as stauth
 from datetime import datetime
 from bson import ObjectId
 
+# Set global variables 
+HF = {}
+
 def initialize_db():
+    global HF
     #Connect to database
     uri = st.secrets.mongo.uri
     client = MongoClient(uri, tlsCAFile=certifi.where())
@@ -19,11 +23,12 @@ def initialize_db():
           "varieties_collection": db.Varieties,
           "users_collection": users_db.Credentials}
     if HF:
-        load_content(HF)
+        authenticate_user()
     else:
         print("Error: Could not connect to database")
 
-def get_crop(HF, field, farm):
+def get_crop(field, farm):
+    global HF
     # Take farm and field name as arguments (field name not unique)
     # Find the field in the dictionary
     returned_field = HF["fields_collection"].find_one({"FieldName": field, "Farm": farm})
@@ -32,19 +37,17 @@ def get_crop(HF, field, farm):
     return cropping
     
 
-
-def load_content(HF):
-    last_crop = get_crop(HF, "Shed Field", "Kingthorpe")[-1].get("Crop", "")
-    print(last_crop)
-
+def load_content():
+    last_crop = get_crop("Shed Field", "Kingthorpe")[-1].get("Crop", "")
+    st.write(last_crop)
 
 
 def authenticate_user():
-    print(HF["users_collection"])
+    global HF
     credentials = HF["users_collection"].find_one({}, {"_id": 0, "usernames": 1})
     cookie_name = HF["users_collection"].find_one({}, {"cookie.name": 1, "_id": 0})['cookie']['name']
     cookie_key = HF["users_collection"].find_one({}, {"cookie.key": 1, "_id": 0})['cookie']['key']
-    cookie_expiry = HF["{users_collection"].find_one({}, {"cookie.expiry_days": 1, "_id": 0})['cookie']['expiry_days']
+    cookie_expiry = HF["users_collection"].find_one({}, {"cookie.expiry_days": 1, "_id": 0})['cookie']['expiry_days']
     pre_auth = HF["users_collection"].find_one({}, {"pre-authorized.emails": 1, "_id": 0}).get('pre-authorized', {}).get('emails', [])
 
     authenticator = stauth.Authenticate(
@@ -61,11 +64,10 @@ def authenticate_user():
         authenticator.logout()
         st.write(f'Welcome *{st.session_state["name"]}*')
         # Load app
-        # load_content()
+        load_content()
     elif st.session_state["authentication_status"] is False:
         st.error('Username/password is incorrect')
     elif st.session_state["authentication_status"] is None:
         st.warning('Please enter your username and password')
 
 initialize_db()
-# authenticate_user()
