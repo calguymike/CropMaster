@@ -41,6 +41,75 @@ def get_crop(field, farm):
     # Return the cropping information for the field as a dictionary
     cropping = returned_field.get("Cropping", {}).get("Crops", [])
     return cropping
+
+# Function to fetch the latest cropping information for a selected farm
+def get_latest_cropping_for_farm(selected_farm):
+    global HF
+    # Query MongoDB for fields in the selected farm
+    fields = HF["fields_collection"].find({"Farm": selected_farm})
+    
+    # Prepare a list to hold the data
+    data = []
+    
+    # Loop through each field
+    for field in fields:
+        field_name = field.get("FieldName", "Unknown Field")
+        cropping_info = field.get("Cropping", {}).get("Crops", [])
+        
+        if cropping_info:
+            # Find the latest cropping info by DrillDate
+            latest_crop = max(cropping_info, key=lambda crop: crop.get("DrillDate", datetime.datetime.min))
+            
+            # Prepare the data row with field name and cropping information
+            row = {
+                "FieldName": field_name,
+                "Crop": latest_crop.get("Crop", "Unknown"),
+                "Dressing": latest_crop.get("Dressing", ""),
+                "DrillDate": latest_crop.get("DrillDate", ""),
+                "CutDate": latest_crop.get("CutDate", ""),
+                "HomeSaved": latest_crop.get("HomeSaved", False),
+                "Quantity": latest_crop.get("Quantity", 0),
+                "Variety": latest_crop.get("Variety", ""),
+                "Yield": latest_crop.get("Yield", 0)
+            }
+            data.append(row)
+    
+    # Convert the data to a pandas DataFrame
+    df = pd.DataFrame(data)
+    df.set_index("FieldName", inplace=True)  # Set FieldName as index for Y-axis
+    return df
+
+
+def update_cropping_in_db(selected_farm, updated_df):
+    global HF
+    # Loop through the DataFrame and update the corresponding field in the database
+    for field_name, row in updated_df.iterrows():
+        # Find the field in the database
+        field = HF["fields_collection"].find_one({"Farm": selected_farm, "FieldName": field_name})
+        
+        if field:
+            # Extract the cropping information
+            cropping_info = field.get("Cropping", {}).get("Crops", [])
+            
+            if cropping_info:
+                # Find the latest cropping entry by DrillDate
+                latest_crop = max(cropping_info, key=lambda crop: crop.get("DrillDate", datetime.datetime.min))
+                
+                # Update the latest crop with values from the DataFrame
+                latest_crop["Crop"] = row["Crop"]
+                latest_crop["Dressing"] = row["Dressing"]
+                latest_crop["DrillDate"] = row["DrillDate"]
+                latest_crop["CutDate"] = row["CutDate"]
+                latest_crop["HomeSaved"] = row["HomeSaved"]
+                latest_crop["Quantity"] = row["Quantity"]
+                latest_crop["Variety"] = row["Variety"]
+                latest_crop["Yield"] = row["Yield"]
+                
+                # Write the updated cropping information back to the database
+                HF["fields_collection"].update_one(
+                    {"Farm": selected_farm, "FieldName": field_name},
+                    {"$set": {"Cropping.Crops": cropping_info}}
+                )
     
 
 def authenticate_user():
@@ -87,12 +156,24 @@ def load_content():
         if selected_farm:
             selected_field = st.selectbox("Select a field", fields_in_farm)
             num_crops = len(get_crop(selected_field, selected_farm))
-            st.write(f"Number of crops: {num_crops}")
+            cropping = get_crop(selected_field, selected_farm)
 
-        
 
     with tab2:
         st.title("Manage Crops")
+        # Step 1: Select a farm
+        farms = HF_loc["fields_collection"].distinct("Farm")
+        farm_name = st.selectbox("Select a Farm", farms)  # Replace with actual farm names
+        
+        if farm_name:
+            # Step 2: Fetch and display the latest cropping information for the selected farm
+            df = get_latest_cropping_for_farm(farm_name)
+            edited_df = st.dataframe(df)
+            
+            # Step 3: Allow the user to update cropping information and write it back to the database
+            if st.button("Update Cropping Information"):
+                update_cropping_in_db(farm_name, edited_df)
+                st.success("Cropping information updated successfully!")
 
     with tab3:
         st.title("Manage Fields")
