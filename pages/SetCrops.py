@@ -3,6 +3,8 @@ import streamlit_authenticator as stauth
 from pymongo import MongoClient
 import certifi
 import pandas as pd
+from datetime import datetime
+import ast
 
 #Connect to database and initialise collections
 uri = st.secrets.mongo.uri
@@ -15,14 +17,48 @@ crops_collection = db.Crops
 user_db = client.Users
 users_collection = user_db.Credentials
 
+def get_crop(field, selected_year):
+    cropping = field.get("Cropping", {})
+    return_crop = ""
+    if cropping:
+        for crop in cropping:
+            if str(crop.get("CropYear", "")) == str(selected_year):
+                return_crop = crop
+    
+    return return_crop
+
+
 def load_content():
+    # Populated select box with list of farms
     selected_farm = st.selectbox("Select Farm", fields_collection.distinct("Farm"))
-   # fields = list(fields_collection.find({"Farm": selected_farm}, {"FieldName": 1, "_id": 0}))
-    fields = [field["FieldName"] for field in fields_collection.find({"Farm": selected_farm}, {"FieldName": 1, "_id": 0})]
-    crops = [crop["Crop"] for crop in crops_collection.find({}, {"Crop": 1, "_id": 0})]
+    selected_year = st.number_input("Select Crop Year (year crop is harvested)", value=datetime.now().year)
+    # find all field names in the selected farm and add to the fields list
+    # fields = [field["FieldName"] for field in fields_collection.find({"Farm": selected_farm}, {"FieldName": 1, "_id": 0})]
+    fields = list(fields_collection.find({"Farm": selected_farm}))
+    for field in fields:
+        field_name = field["FieldName"]
+        cropping = get_crop(field, selected_year)
+        try:
+            crop_name = cropping.get("Crop", "")
+        except:
+            crop_name = ""
+        
+
+    ''' # Get crop names from crop database and store in crops variable
+    available_crops = [crop["Crop"] for crop in crops_collection.find({}, {"Crop": 1, "_id": 0})]
+    # Add fields to dataframe
+    # TODO - Populate crop with selected year crop
+    # for field in fields_data:
+        # field_name = field["FieldName"]
+        # cropping_data = field.get("Cropping", "")
+    
+
 
     df = pd.DataFrame({'Field': fields, 'Crop': ""})
-    df['Crop'] = df['Crop'].astype(pd.CategoricalDtype(crops))
+    # Set crop column in df to catagory type, with crops as categories
+    df['Crop'] = df['Crop'].astype(pd.CategoricalDtype(available_crops))
+
+    # Store the user modified values in edited_df
     edited_df = st.data_editor(df, num_rows="dynamic", use_container_width = True)
 
     if st.button("Save Changes"):
@@ -30,13 +66,10 @@ def load_content():
         changed_ids = differences.index.get_level_values(0).unique()
         print(changed_ids)
 
-        # Step 7: Loop through changed rows and update MongoDB
         for index in changed_ids:
-            # Get the field and crop for the changed row
             field_name = edited_df.loc[index, 'Field']
             selected_crop = edited_df.loc[index, 'Crop']
 
-            # Update the document in MongoDB for this field
             result = fields_collection.update_one(
                 {"FieldName": field_name, "Farm": selected_farm},  # Match by FieldName and Farm
                 {"$set": {"Cropping": selected_crop}}  # Update the Cropping field with the new crop
@@ -45,9 +78,7 @@ def load_content():
             if result.modified_count > 0:
                 st.success(f"Updated {field_name} with crop {selected_crop}.")
             else:
-                st.warning(f"No changes made for {field_name}.")
-    
-
+                st.warning(f"No changes made for {field_name}.") '''
 
 
 def authenticate_user():
