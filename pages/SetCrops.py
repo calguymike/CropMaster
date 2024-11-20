@@ -22,7 +22,7 @@ def get_crop(field, selected_year):
     return_crop = ""
     if cropping:
         for crop in cropping:
-            if str(crop.get("CropYear", "")) == str(selected_year):
+            if crop.get("CropYear", "") == selected_year:
                 return_crop = crop
     
     return return_crop
